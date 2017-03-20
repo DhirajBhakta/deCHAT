@@ -21,7 +21,7 @@ class RendezvousServer:
 		{"USERNAME": "<username>", "LOCALIP": "<local_ip>", "LOCALPORT": "<listening_port>", "QUERY": "<ALL>/<target_username>/<DEL>"}
 		"""
 		query_dict = json.loads(peer_sock.recv(1024))
-		resp_json = {}
+		resp_json = json.dumps({})
 		
 		self.peer_table[query_dict['USERNAME']] = (query_dict['LOCALIP'], query_dict['LOCALPORT'])
 		if query_dict['QUERY'] == 'ALL':

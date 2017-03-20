@@ -71,6 +71,7 @@ class Peer:
 			#request to delete sender's entry from peer_table
 			if (data['MSG']=="DEL"):
 				self.peer_table.pop(data['USERNAME'],None)
+				print data['USERNAME']+" has left the network."
 				continue
 			elif (data['MSG']=="REQ_TIME"):
 				time_dict =dict(MSG="RESP_TIME",TIMESTAMP=self.timestamp,USERNAME=self.username,PORT=self.my_local_port)
