@@ -17,21 +17,24 @@ class RendezvousServer:
 		"""
 		Read a query from the peer and respond appropriately
 		Query Format:
-		{"USERNAME": "<username>", "LOCALIP": "<local_ip>", "LOCALPORT": "<listening_port>", "QUERY": "<ALL>/<target_username>"}
+		{"USERNAME": "<username>", "LOCALIP": "<local_ip>", "LOCALPORT": "<listening_port>", "QUERY": "<ALL>/<target_username>/<DEL>"}
 		"""
 		query_dict = json.loads(peer_sock.recv(1024))
+		resp_json = {}
 		if not self.peer_table.has_key(query_dict['USERNAME']):
 			self.peer_table[query_dict['USERNAME']] = (query_dict['LOCALIP'], query_dict['LOCALPORT'])
 		if query_dict['QUERY'] == 'ALL':
 			resp_json = json.dumps(self.peer_table)
+		elif query_dict['QUERY']=='DEL':
+			self.peer_table.pop(query_dict['USERNAME'])
+			print query_dict['USERNAME'] +" has left the network."
+
 		else:#specific target (a peer wants to know addr of a specific peer)
 			target_username = query_dict["QUERY"].strip()
 			if self.peer_table.has_key(target_username):
 				resp_dict = {target_username: self.peer_table[target_username]}
 				print resp_dict
 				resp_json = json.dumps(resp_dict)
-			else:
-				resp_json = json.dumps(dict())
 		peer_sock.send(resp_json)
 		peer_sock.close()
 

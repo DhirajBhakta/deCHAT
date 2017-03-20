@@ -32,6 +32,8 @@ class Peer:
 		self.my_local_ip   = "127.0.0.1"
 		self.my_local_port = self_port  #listening port
 		self.peer_table = {}
+		self.max_timestamp = (0,username) # is a (timestamp,username) tuple
+		self.timestamp = None
 		self.getAllConnectedPeerDetails()
 
 		self.sentinel = True #Threads check on sentinel to stop/continue        
@@ -59,19 +61,43 @@ class Peer:
 		while(self.sentinel):
 			data,sender_addr = self.recv_sock.recvfrom(1024)
 			data = json.loads(data)
-			#request to delete sender's entry from peer_table
-			if (data['MSG']=="DEL"):
-				self.peer_table.pop(data['USERNAME'],None)
-				continue
-			#normal text message
-			if not self.peer_table.has_key(data['USERNAME']):
-				self.peer_table[data['USERNAME']] = (sender_addr[0],data['PORT']) 
+			self.peer_table[data['USERNAME']] = (sender_addr[0],data['PORT']) 
 				#note that here ^^^ I didnt use sender_addr[1] as the port, but instead, used the port supplied by the sender
 				#					himself in the body of the message. This is because, peer_table keeps track of listening ports
 				#					of other peers. sender_addr[1] gives the sending port of the sender. Since there's no possible way
 				#					to derive the sender's listening port, he intentionally packs that info in the message.
+			#request to delete sender's entry from peer_table
+			if (data['MSG']=="DEL"):
+				self.peer_table.pop(data['USERNAME'],None)
+				continue
+			elif (data['MSG']=="REQ_TIME"):
+				time_dict =dict(MSG="RESP_TIME",TIMESTAMP=self.timestamp,USERNAME=self.username,PORT=self.my_local_port)
+				self.send_sock.sendto(json.dumps(time_dict),self.peer_table[data['USERNAME']])
+				print data['USERNAME']+" has requested my timestamp"
+			elif (data['MSG']=="RESP_TIME"):
+				print "recieved timestamp from "+data['USERNAME']
+				if data['TIMESTAMP']>self.max_timestamp[0]:
+					self.max_timestamp = (data['TIMESTAMP'],data['USERNAME'])
+					print "max_timestamp updated"
+				else:
+					print "max_timestamp didnt update"
+			elif (data['MSG']=="REQ_PEER_TABLE"):
+				peer_table_resp =dict(MSG="RESP_PEER_TABLE",PEER_TABLE=self.peer_table,USERNAME=self.username,PORT=self.my_local_port)
+				self.send_sock.sendto(json.dumps(peer_table_resp),self.peer_table[data['USERNAME']])
+			elif (data['MSG']=="RESP_PEER_TABLE"):
+				self.timestamp = time.time()
+				print self.timestamp
+				self.peer_table = data['PEER_TABLE']
+				for username in self.peer_table.keys():
+					self.peer_table[username] = tuple(self.peer_table[username])
+				self.peer_table[data['USERNAME']] = (sender_addr[0],data['PORT']) 
+				print "peer List updated."
+
+			else:
+			#normal text message
+		
 			#pretty-print here,.
-			print "INCOMING MESSAGE >"+data['USERNAME'] +":"+data['MSG']
+				print "INCOMING MESSAGE >"+data['USERNAME'] +":"+data['MSG']
 
 
 	#only to Parse input,
@@ -82,25 +108,46 @@ class Peer:
 			if (user_input =="EXIT"):
 				self.sentinel = False
 				DEL_signal = dict(MSG="DEL",PORT=self.my_local_port,USERNAME=self.username)
-				# the quitting peer packs his listening port in the message.  
+				# the quitting peer, packs his listening port in the message.  
 				for reciever in self.peer_table.values():
 					self.send_sock.sendto(json.dumps(DEL_signal),reciever)
+				# quitting peer informs the RServer too
+				temp_sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+				self_info = dict(USERNAME=self.username, LOCALIP=self.my_local_ip, LOCALPORT=self.my_local_port, QUERY="DEL")
+				temp_sock.connect(self.R_Server_addr)
+				temp_sock.send(json.dumps(self_info))
+				temp_sock.close()
+				#----
 				self.send_sock.close()
 				self.recv_sock.close()
 				print "Connection Closed.....\n\n"
 				break
-			elif(user_input =="SHOW_USERS"):
+			elif(user_input =="USERS"):
 				print "\n\nThere are "+str(len(self.peer_table))+" connected usernames:"
 				for uname in self.peer_table.keys():
 					print "-- "+uname
 				print "------------------------------"
 				continue
 
+			elif(user_input == "UPDATE"):
+				req_time_dict = dict(MSG="REQ_TIME",PORT=self.my_local_port,USERNAME=self.username)
+				if len(self.peer_table)>0:
+					for reciever in self.peer_table.values():
+						self.send_sock.sendto(json.dumps(req_time_dict),reciever)
+					threading.Timer(10.0,self.requestPeertable).start()
+				else:
+					self.getAllConnectedPeerDetails()
+				continue
+
+
+
+
 			elif(user_input =="HELP"):
 				print "\n\n\n----------WELCOME TO DECENTRALIZED CHAT v1.0-----------"
-				print "SHOW_USERS: full listing of connected peers."
+				print "USERS     : full listing of connected peers."
 				print "HELP      : Show this help."
 				print "EXIT      : Quit chatting."
+				print "REFRESH   : Get the refreshed list of connected peers from the RServer"  
 				print "------------------------------------------------------\n\n\n"
 				continue
 			try:
@@ -119,9 +166,6 @@ class Peer:
 
 
 	def getAllConnectedPeerDetails(self):
-	
-		
-
 	#First, register yourself with the R.Server,
 	# ...send your own IP,port (private,obviously..as public IP,port can be extracted from IP header)
 	# ...youre sending your listening port,
@@ -141,27 +185,31 @@ class Peer:
 					NOT_CONN_MSG = True
 				else:
 					sys.stderr.write(" .")
-				
-		
 		self_info = dict(USERNAME=self.username, LOCALIP=self.my_local_ip, LOCALPORT=self.my_local_port, QUERY="ALL")
 		temp_sock.send(json.dumps(self_info))
 		#now get a dict of all peers,addr
 		self.peer_table = json.loads(temp_sock.recv(1024*10))
+		self.timestamp  = time.time()
+		print self.timestamp
 		for username in self.peer_table.keys():
 			self.peer_table[username] = tuple(self.peer_table[username])
+		self.peer_table.pop(self.username)
 		temp_sock.close()
 
 
-
+	#requests peer table from the max timestamp peer
+	def requestPeertable(self):
+		print "inside timer thread"
+		max_peer_addr = self.peer_table[self.max_timestamp[1]]
+		print max_peer_addr
+		data = dict(MSG="REQ_PEER_TABLE",USERNAME=self.username,PORT=self.my_local_port)
+		self.send_sock.sendto(json.dumps(data),max_peer_addr)
 
 
 
 #--------------------------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------------------------
-
-
-
 
 
 
@@ -183,6 +231,5 @@ if __name__ == '__main__':
 	selfPort = int(sys.argv[3])
 	username = sys.argv[2]
 
-
-
 	peer = Peer(R_Server_addr, username, selfPort)
+
