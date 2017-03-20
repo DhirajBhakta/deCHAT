@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 # Test comment
 import socket
 import os
@@ -29,7 +31,7 @@ class Peer:
 	def __init__(self,R_Server_addr,username, self_port):
 		self.username 	   = username
 		self.R_Server_addr = R_Server_addr   #Rendezvous Server address i.e('IP',port) tuple
-		self.my_local_ip   = "127.0.0.1"
+		self.my_local_ip   = "0.0.0.0"
 		self.my_local_port = self_port  #listening port
 		self.peer_table = {}
 		self.max_timestamp = (0,username) # is a (timestamp,username) tuple
@@ -90,7 +92,8 @@ class Peer:
 				self.peer_table = data['PEER_TABLE']
 				for username in self.peer_table.keys():
 					self.peer_table[username] = tuple(self.peer_table[username])
-				self.peer_table[data['USERNAME']] = (sender_addr[0],data['PORT']) 
+				self.peer_table[data['USERNAME']] = (sender_addr[0],data['PORT'])
+				self.peer_table.pop(self.username) 
 				print "peer List updated."
 
 			else:
@@ -125,7 +128,7 @@ class Peer:
 			elif(user_input =="USERS"):
 				print "\n\nThere are "+str(len(self.peer_table))+" connected usernames:"
 				for uname in self.peer_table.keys():
-					print "-- "+uname
+					print "-- "+uname+" "+str(self.peer_table[uname])
 				print "------------------------------"
 				continue
 

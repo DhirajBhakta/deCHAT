@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import threading
 import socket
 import json
@@ -10,10 +11,10 @@ class RendezvousServer:
 	def __init__(self, port):
 		self.serv_port = port
 		self.serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.serv_sock.bind(("127.0.0.1", self.serv_port))
+		self.serv_sock.bind(("0.0.0.0", self.serv_port))
 		self.peer_table = dict()
 
-	def respondToQuery(self, peer_sock):
+	def respondToQuery(self, peer_sock,peer_ip):
 		"""
 		Read a query from the peer and respond appropriately
 		Query Format:
@@ -21,8 +22,8 @@ class RendezvousServer:
 		"""
 		query_dict = json.loads(peer_sock.recv(1024))
 		resp_json = {}
-		if not self.peer_table.has_key(query_dict['USERNAME']):
-			self.peer_table[query_dict['USERNAME']] = (query_dict['LOCALIP'], query_dict['LOCALPORT'])
+		
+		self.peer_table[query_dict['USERNAME']] = (peer_ip, query_dict['LOCALPORT'])
 		if query_dict['QUERY'] == 'ALL':
 			resp_json = json.dumps(self.peer_table)
 		elif query_dict['QUERY']=='DEL':
@@ -45,7 +46,7 @@ class RendezvousServer:
 		while True:
 			peer_sock, peer_addr = self.serv_sock.accept()
 			print "Peer at " + str(peer_addr) + " connected..."
-			threading.Thread(target=self.respondToQuery, args=(peer_sock,)).start()
+			threading.Thread(target=self.respondToQuery, args=(peer_sock,peer_addr[0])).start()
 
 
 
