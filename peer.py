@@ -28,10 +28,10 @@ class Peer:
 				 	The R.Server then returns a dict of all registered peers.
 				 	>>>T.B.D : call this function regularly periodically , to keep track of all connected peers
 	"""
-	def __init__(self,R_Server_addr,username, self_port):
+	def __init__(self,R_Server_addr,username, self_ip, self_port):
 		self.username 	   = username
 		self.R_Server_addr = R_Server_addr   #Rendezvous Server address i.e('IP',port) tuple
-		self.my_local_ip   = "0.0.0.0"
+		self.my_local_ip   = self_ip
 		self.my_local_port = self_port  #listening port
 		self.peer_table = {}
 		self.max_timestamp = (0,username) # is a (timestamp,username) tuple
@@ -231,8 +231,12 @@ if __name__ == '__main__':
 	R_Server_addr = sys.argv[1].split(':')
 	R_Server_addr[1] = int(R_Server_addr[1])
 	R_Server_addr = tuple(R_Server_addr)
-	selfPort = int(sys.argv[3])
+	self_port = int(sys.argv[3])
 	username = sys.argv[2]
 
-	peer = Peer(R_Server_addr, username, selfPort)
+	sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+	sock.connect(('10.10.54.4', 8090)) 
+	self_ip=sock.getsockname()[0]
+
+	peer = Peer(R_Server_addr, username,self_ip ,self_port)
 
