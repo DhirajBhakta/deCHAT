@@ -14,7 +14,7 @@ class RendezvousServer:
 		self.serv_sock.bind(("0.0.0.0", self.serv_port))
 		self.peer_table = dict()
 
-	def respondToQuery(self, peer_sock,peer_ip):
+	def respondToQuery(self, peer_sock):
 		"""
 		Read a query from the peer and respond appropriately
 		Query Format:
@@ -23,7 +23,7 @@ class RendezvousServer:
 		query_dict = json.loads(peer_sock.recv(1024))
 		resp_json = {}
 		
-		self.peer_table[query_dict['USERNAME']] = (peer_ip, query_dict['LOCALPORT'])
+		self.peer_table[query_dict['USERNAME']] = (query_dict['LOCALIP'], query_dict['LOCALPORT'])
 		if query_dict['QUERY'] == 'ALL':
 			resp_json = json.dumps(self.peer_table)
 		elif query_dict['QUERY']=='DEL':
@@ -46,7 +46,7 @@ class RendezvousServer:
 		while True:
 			peer_sock, peer_addr = self.serv_sock.accept()
 			print "Peer at " + str(peer_addr) + " connected..."
-			threading.Thread(target=self.respondToQuery, args=(peer_sock,peer_addr[0])).start()
+			threading.Thread(target=self.respondToQuery, args=(peer_sock,)).start()
 
 
 
